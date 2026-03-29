@@ -1,8 +1,18 @@
-TELEMETRY GRADIO STATUS BIG_ENDIAN "Telemetry description"
-  # Keyword      Name  BitSize Type   ID Description
-  APPEND_ID_ITEM ID    16      INT    1  "Identifier"
-  APPEND_ITEM    VALUE 32      FLOAT     "Value"
-  APPEND_ITEM    BOOL  8       UINT      "Boolean"
-    STATE FALSE 0
-    STATE TRUE 1
-  APPEND_ITEM    LABEL 0       STRING    "The label to apply"
+TELEMETRY GRADIO STELEMETRY BIG_ENDIAN "Sensor Telemetry description"
+  # Keyword      Name           BitSize Type   ID       Description
+  APPEND_ID_ITEM ID             16      UINT   0x01     "Identifier"
+    FORMAT_STRING "0X%04X"
+  APPEND_ITEM    SPACECRAFT_ID  8       UINT            "Spacecraft Identifier"
+    FORMAT_STRING "0X%02X"
+  APPEND_ITEM    ACC_X          16      INT              "Accelerometer X"
+    GENERIC_READ_CONVERSION_START
+      int(value / 100) # Convert the value by a scale factor
+    GENERIC_READ_CONVERSION_END
+    CONVERTED_DATA 32 FLOAT
+  APPEND_ITEM    ACC_Y          16      INT              "Accelerometer Y"
+  APPEND_ITEM    ACC_Z          16      INT              "Accelerometer Z"
+  APPEND_ITEM    ACC_TMP        16      INT              "Accelerometer Temperature"
+  APPEND_ITEM    BME_TMP        16      INT              "Environment Temperature"
+  APPEND_ITEM    BME_PREASURE   16      INT              "Environment Preasure"
+  APPEND_ITEM    BME_ALTITUDE   16      INT              "Environment Altitude"
+  APPEND_ITEM    BME_HUMIDITY   16      INT              "Environment Humidity"

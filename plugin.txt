@@ -1,7 +1,8 @@
 # Set VARIABLEs here to allow variation in your plugin
-
+VARIABLE ip gradio-bridge
+VARIABLE port_tm 5010
+VARIABLE port_tc 5020
 VARIABLE gradio_target_name GRADIO
 
 TARGET GRADIO <%= gradio_target_name %>
-INTERFACE <%= gradio_target_name %>_INT openc3/interfaces/tcpip_client_interface.py host.docker.internal 8080 8081 10.0 None BURST
-  MAP_TARGET <%= gradio_target_name %>
+INTERFACE <%= gradio_target_name %>_INT udp_interface.rb <%= ip %> <%= port_tc %> <%= port_tm %> nil nil 128 nil nil MAP_TARGET <%= gradio_target_name %>

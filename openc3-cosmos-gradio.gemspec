@@ -8,9 +8,9 @@ Gem::Specification.new do |s|
     openc3-cosmos-gradio plugin for deployment to OpenC3
   EOF
   s.license = 'MIT'
-  s.authors = ['Anonymous']
-  s.email = ['name@domain.com']
-  s.homepage = 'https://github.com/OpenC3/cosmos'
+  s.authors = ['Kevin']
+  s.email = ['kevinleon.morales@gmail.com']
+  s.homepage = 'https://github.com/JahazielLem/openc3-cosmos-gradio'
   s.platform = Gem::Platform::RUBY
   s.required_ruby_version = '>= 3.0'
 

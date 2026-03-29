@@ -1,8 +1,6 @@
-COMMAND GRADIO EXAMPLE BIG_ENDIAN "Packet description"
-  # Keyword           Name  BitSize Type   Min Max  Default  Description
-  APPEND_ID_PARAMETER ID    16      INT    1   1    1        "Identifier"
-  APPEND_PARAMETER    VALUE 32      FLOAT  0   10.5 2.5      "Value"
-  APPEND_PARAMETER    BOOL  8       UINT   MIN MAX  0        "Boolean"
+COMMAND GRADIO SET_THRUSTER BIG_ENDIAN "Set Thruster Power"
+  ID_PARAMETER        ID            8   8   UINT   0x01   0x01    0x01     "Identifier"
+  APPEND_PARAMETER    THRUSTER_ID   8       UINT   MIN    MAX     0        "Thruster ID"
     STATE FALSE 0
     STATE TRUE 1
-  APPEND_PARAMETER    LABEL 0       STRING          "OpenC3" "The label to apply"
+  APPEND_PARAMETER    VALUE         8       INT    0     100     0          "Thruster Power"
