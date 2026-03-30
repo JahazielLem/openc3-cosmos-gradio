@@ -8,9 +8,11 @@
 # Copyright: pwnsat.org
 # Description: GNU Radio to CosmosC3 Communication Interface
 
-import socket
 import zmq
 import sys
+import pmt
+import time
+import socket
 import struct
 import signal
 import string
@@ -37,6 +39,7 @@ TELEMETRY_IP = "cosmos-project-openc3-operator-1"
 
 # GNU Radio
 GRADIO_TM_SERVER = "tcp://172.18.0.1:5005"
+GRADIO_TC_SERVER = "tcp://172.18.0.1:5006"
 
 def ok(msg): print(f"\033[32m[+]\033[0m {msg}")
 def err(msg): print(f"\033[31m[!]\033[0m {msg}")
@@ -146,8 +149,10 @@ class SpacePacketProtocol:
 
 class GNURadioController:
     def __init__(self):
-        self.ctx = None
-        self.sock = None
+        self.tm_ctx = None
+        self.tm_sock = None
+        self.tc_ctx = None
+        self.tc_sock = None
         self.running = False
         self.cb_packet = None
 
@@ -156,13 +161,27 @@ class GNURadioController:
     
     def start(self):
         self.running = True
-        self.ctx = zmq.Context()
-        self.sock = self.ctx.socket(zmq.SUB)
+        self.tm_ctx = zmq.Context()
+        self.tm_sock = self.tm_ctx.socket(zmq.SUB)
+        self.tc_ctx = zmq.Context()
+        self.tc_sock = self.tc_ctx.socket(zmq.PUSH)
 
-        ok("Connecting to GNU Radio server")
-        self.sock.connect(GRADIO_TM_SERVER)
-        self.sock.setsockopt(zmq.SUBSCRIBE, b"")
+        ok("Connecting to GNU Radio TM server")
+        self.tm_sock.connect(GRADIO_TM_SERVER)
+        self.tm_sock.setsockopt(zmq.SUBSCRIBE, b"")
+
+        ok("Connecting to GNU Radio TC server")
+        self.tc_sock.connect(GRADIO_TC_SERVER)
+        self.tc_sock.setsockopt(zmq.SNDHWM, 1)
     
+    def send_tc(self, command: bytes):
+        for i in range(0, 6):
+            pdu_bytes = pmt.serialize_str(pmt.to_pmt(command.hex()))
+            self.tc_sock.send(pdu_bytes)
+            time.sleep(1)
+        
+        ok("Command Packet sended")
+
     def stop(self):
         if not self.running:
             return
@@ -170,19 +189,24 @@ class GNURadioController:
         self.running = False
         
         info("\nStooping...")
-        if self.sock:
-            self.sock.close(0)
+        if self.tm_sock:
+            self.tm_sock.close(0)
         
-        if self.ctx:
-            self.ctx.term()
+        if self.tm_ctx:
+            self.tm_ctx.term()
         
+        if self.tc_sock:
+            self.tc_sock.close(0)
+        
+        if self.tc_ctx:
+            self.tc_ctx.term()
         ok("Clean exit")
     
     def run(self):
         self.start()
         try:
             while self.running:
-                raw_telemetry = self.sock.recv()
+                raw_telemetry = self.tm_sock.recv()
                 print_packet(raw_telemetry, "Raw Telemetry")
                 spp = SpacePacketProtocol(raw_telemetry)
                 if spp.decode():
@@ -198,6 +222,11 @@ class DockerController:
         self.tm_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.running = False
+
+        self.sender_cb = None
+
+    def set_sender_cb(self, cb):
+        self.sender_cb = cb
     
     def setup(self):
         self.tc_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -232,10 +261,14 @@ class DockerController:
                 command = data.decode()
                 info(f"Received command: {command} from {addr}")
                 print_packet(data, "COMMAND")
+                # Response to Cosmos Site
                 id = TLM_IDS["SPAYLOAD"]
                 fmt = '>h12s'
                 packed = struct.pack(fmt, id, b"RSP")
                 self.tm_socket.sendto(packed, (TELEMETRY_IP, TELEMETRY_PORT))
+                # Send to SDR
+                if self.sender_cb:
+                    self.sender_cb(data)
             except KeyboardInterrupt:
                 self.stop()
     
@@ -258,7 +291,9 @@ def main():
     show_banner()
     gradio = GNURadioController()
     dcontroller = DockerController()
+    
     gradio.set_cb_packet(dcontroller.send_telemetry)
+    dcontroller.set_sender_cb(gradio.send_tc)
 
     th_gradio = threading.Thread(target=gradio.run, daemon=True)
     th_gradio.start()
