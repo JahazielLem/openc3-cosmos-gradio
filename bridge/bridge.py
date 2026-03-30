@@ -258,8 +258,6 @@ class DockerController:
         while self.running:
             try:
                 data, addr = self.tc_socket.recvfrom(1024)
-                command = data.decode()
-                info(f"Received command: {command} from {addr}")
                 print_packet(data, "COMMAND")
                 # Response to Cosmos Site
                 id = TLM_IDS["SPAYLOAD"]
