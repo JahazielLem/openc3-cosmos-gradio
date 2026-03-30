@@ -6,128 +6,269 @@
 # Title: Bridge Data Interface
 # Author: Kevin Leon
 # Copyright: pwnsat.org
-# Description: SDR to CosmosC3 Communication Interface
-import zmq
+# Description: GNU Radio to CosmosC3 Communication Interface
+
 import socket
+import zmq
+import sys
 import struct
 import signal
+import string
 import threading
 
 SOFTWARE_VERSION = "0.1.0"
-BANNER = f"Bridge Data Inferface | Version: {SOFTWARE_VERSION} | Author: Kevin Leon | Pwnsat.org"
+BANNER = f"""
+  +-------------+        +-------------+        +-------------+        +-------------+
+  |   PWNSAT    |  RF    |     SDR     |  IQ    |     BDI     |  UDP   |   OpenC3    |
+  | --|    |--  | ~~~~~> |    (~~)     | -----> |    [==>]    | -----> |   [GUI]     |
+  |   |____|    |        |  RF Front   |        |  SPP Decode |        |  Mission    |
+  |  Telemetry  |        |  LoRa Demod |        |   Routing   |        |  Control    |
+  |   Telecmd   |        |             |        |             |        |             |
+  +-------------+        +-------------+        +-------------+        +-------------+
 
-LOCAL_IP = "0.0.0.0"
-COSMOS_TC_PORT = 5020
-COSMOS_TM_PORT = 5010
+  \033[34mBridge Data Inferface | Version: {SOFTWARE_VERSION} | Author: Kevin Leon | Pwnsat\033[0m
+"""
 
-GDI_TM_PORT = "tcp://0.0.0.0:5005"
-GDI_TC_PORT = "tcp://0.0.0.0:5006"
+LISTEN_IP = "0.0.0.0"
+COMMAND_PORT = 1235
+TELEMETRY_PORT = 1234
+# Change if the client is on a different machine
+TELEMETRY_IP = "cosmos-project-openc3-operator-1"
+
+# GNU Radio
+GRADIO_TM_SERVER = "tcp://172.18.0.1:5005"
 
 def ok(msg): print(f"\033[32m[+]\033[0m {msg}")
 def err(msg): print(f"\033[31m[!]\033[0m {msg}")
 def info(msg): print(f"\033[34m[*]\033[0m {msg}")
 
-class GDI:
-  def __init__(self):
-    self.sdr_gdi_tc    = None
-    self.sdr_gdi_tm    = None
-    self.gdi_cosmos_tc = None
-    self.gdi_cosmos_tm = None
-    self.sockets = []
+TLM_IDS = {
+    "SPAYLOAD": 0x4320
+}
 
-    self.shutdown_event = threading.Event()
-    self.zmq_context = zmq.Context()
-    signal.signal(signal.SIGINT, self.handle_signal)
-    signal.signal(signal.SIGTERM, self.handle_signal)
+def hexdump(data: bytes, width: int = 16) -> str:
+    lines = []
 
-  def handle_signal(self, signum, _):
-    err(f"Signal {signum} received, shutting down...")
-    self.shutdown_event.set()
+    for offset in range(0, len(data), width):
+        chunk = data[offset : offset + width]
 
-  def send_gdi_sdr_tc(self, pkt: bytes):
-    if self.sdr_gdi_tc is None:
-      self.sdr_gdi_tc = self.zmq_context.socket(zmq.PUSH)
-      self.sdr_gdi_tc.connect(GDI_TC_PORT)
-    packet = b"hello world"
-    ok(f"Packet sended to: {GDI_TC_PORT} {packet}")
-    self.sdr_gdi_tc.send(packet)
+        hex_bytes = " ".join(f"{b:02X}" for b in chunk)
+        hex_bytes = hex_bytes.ljust(width * 3)
 
-  def sdr_tm_recv_worker(self):
-    info("GDI thread started")
+        ascii_bytes = "".join(
+            chr(b) if chr(b) in string.printable and b >= 0x20 else "." for b in chunk
+        )
 
-    poller = zmq.Poller()
-    poller.register(self.sdr_gdi_tm, zmq.POLLIN)
+        lines.append(f"{offset:08X}  {hex_bytes}  {ascii_bytes}")
 
-    while not self.shutdown_event.is_set():
-      try:
-        socks = dict(poller.poll(500))
-        if self.sdr_gdi_tm in socks:
-            data = self.sdr_gdi_tm.recv(zmq.NOBLOCK)
-            if data:
-              print(f"GDI RECV -> {data}")
-      except zmq.ZMQError:
-        break
-    info("GDI thread exiting")
+    return "\n".join(lines)
 
-  def _init_sdr_gdi_tm(self):
-    ok(f"Listening ZMQ {GDI_TM_PORT}")
-    self.sdr_gdi_tm = self.zmq_context.socket(zmq.PULL)
-    self.sdr_gdi_tm.bind(GDI_TM_PORT)
-    self.sockets.append(self.sdr_gdi_tm)
+def hexdump_split(data: bytes, header_len=6):
+    header = data[:header_len]
+    payload = data[header_len:]
 
-  def _init_sdr_gdi_tc(self):
-    ok(f"Connected ZMQ {GDI_TC_PORT}")
-    self.sdr_gdi_tc = self.zmq_context.socket(zmq.PUSH)
-    self.sdr_gdi_tc.connect(GDI_TC_PORT)
-    self.sockets.append(self.sdr_gdi_tc)
+    print("\033[33m[HEADER]\033[0m")
+    print(hexdump(header))
 
-  def _init_gdi_cosmos_tc(self):
-    ok(f"Listening Cosmos TC {COSMOS_TC_PORT}")
-    self.gdi_cosmos_tc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    self.gdi_cosmos_tc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    self.gdi_cosmos_tc.bind((LOCAL_IP, COSMOS_TC_PORT))
-    self.gdi_cosmos_tc.settimeout(1.0)
-    self.sockets.append(self.gdi_cosmos_tc)
+    print("\033[36m[PAYLOAD]\033[0m")
+    print(hexdump(payload))
 
-  def _init_gdi_cosmos_tm(self):
-    ok(f"Connecting Cosmos TM {COSMOS_TM_PORT}")
-    self.gdi_cosmos_tm = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def print_packet(packet: bytes, name: str = "PACKET") -> None:
+    print(f"\n=========== {name} ===========")
+    print(f"Length: {len(packet)}")
+    print(hexdump(packet))
 
-  def run(self):
-    err("Press CTRL + C to exit...")
+
+class SpacePacketProtocol:
+    def __init__(self, raw_frame: bytes = None):
+        self.raw_frame = raw_frame
+        self.packet_id = 0
+        self.sequence = 0
+        self.length = 0
+        self.version = 0
+        self.f_type = 0
+        self.sec_header = 0
+        self.apid = 0
+        self.seq_flags = 0
+        self.seq_count = 0
+        self.seq_flag_str = "Unknown"
+        self.payload = None
+
+
+    def decode(self) -> bool:
+        if self.raw_frame is None:
+            return False
+        
+        if len(self.raw_frame) < 6:
+            err("Space Packet to short")
+            return False
+        
+        (self.packet_id, self.sequence, self.length) = struct.unpack("<HHH", self.raw_frame[:6])
+
+        self.version    = (self.packet_id << 13) & 0x7
+        self.f_type     = (self.packet_id << 11) & 0x1
+        self.sec_header = (self.packet_id << 10) & 0x1
+        self.apid       = self.packet_id & 0x7FF
+
+        self.seq_flags = (self.sequence << 14) & 0x3
+        self.seq_count = self.sequence & 0x3FFF
+
+        self.payload = self.raw_frame[6:6 + (self.length + 1)]
+
+        self.seq_flag_str = {
+            0b00: "Continuation",
+            0b01: "Start",
+            0b10: "End",
+            0b11: "Unsegmented"
+        }.get(self.seq_flags, "Unknown")
+        
+        return True
+    
+    def print_details(self):
+        print(f"\n=========== Space Packet ===========")
+        print(f"Version:            {self.version}")
+        print(f"Type:               {self.f_type:02X} ({'TM' if self.f_type == 0x00 else 'TC'})")
+        print(f"Secondary Header:   {self.sec_header}")
+        print(f"APID:               0x{self.apid:04X}")
+        print(f"Sequence Flags:     0x{self.seq_flags:X} ({self.seq_flag_str})")
+        print(f"Sequence Count:     {self.seq_count}")
+        print(f"Data Length:        {self.length}")
+        hexdump_split(self.raw_frame)
+    
+    def print_summary(self):
+        print(
+            f"\033[36m[SPP]\033[0m "
+            f"APID=0x{self.apid:03X} "
+            f"SEQ={self.seq_count} SEQ_FLAG={self.seq_flag_str} "
+            f"LEN={self.length} "
+            f"TYPE={'TM' if self.f_type == 0 else 'TC'} "
+            f"FLAGS={self.seq_flags}")
+
+class GNURadioController:
+    def __init__(self):
+        self.ctx = None
+        self.sock = None
+        self.running = False
+        self.cb_packet = None
+
+    def set_cb_packet(self, cb):
+        self.cb_packet = cb
+    
+    def start(self):
+        self.running = True
+        self.ctx = zmq.Context()
+        self.sock = self.ctx.socket(zmq.SUB)
+
+        ok("Connecting to GNU Radio server")
+        self.sock.connect(GRADIO_TM_SERVER)
+        self.sock.setsockopt(zmq.SUBSCRIBE, b"")
+    
+    def stop(self):
+        if not self.running:
+            return
+        
+        self.running = False
+        
+        info("\nStooping...")
+        if self.sock:
+            self.sock.close(0)
+        
+        if self.ctx:
+            self.ctx.term()
+        
+        ok("Clean exit")
+    
+    def run(self):
+        self.start()
+        try:
+            while self.running:
+                raw_telemetry = self.sock.recv()
+                print_packet(raw_telemetry, "Raw Telemetry")
+                spp = SpacePacketProtocol(raw_telemetry)
+                if spp.decode():
+                    spp.print_summary()
+                    if self.cb_packet:
+                        self.cb_packet(spp)
+        except KeyboardInterrupt:
+            self.stop()
+
+class DockerController:
+    def __init__(self):
+        self.tc_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.tm_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        self.running = False
+    
+    def setup(self):
+        self.tc_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.tm_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def start(self):
+        self.running = True
+        self.tc_socket.bind((LISTEN_IP, COMMAND_PORT))
+
+        ok("BDI TC server binded")
+
+    def send_telemetry(self, spp_packet: SpacePacketProtocol):
+        info(f"Telemetry Packet sended to Cosmos: {TELEMETRY_IP}")
+        packed = struct.pack("<h", spp_packet.apid) + spp_packet.payload
+        self.tm_socket.sendto(packed, (TELEMETRY_IP, TELEMETRY_PORT))
+        print(hexdump(packed))
+    
+    def run(self):
+        def handler(sig, frame):
+            self.stop()
+            sys.exit(0)
+            
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler)
+
+        self.setup()
+        self.start()
+
+        while self.running:
+            try:
+                data, addr = self.tc_socket.recvfrom(1024)
+                command = data.decode()
+                info(f"Received command: {command} from {addr}")
+                print_packet(data, "COMMAND")
+                id = TLM_IDS["SPAYLOAD"]
+                fmt = '>h12s'
+                packed = struct.pack(fmt, id, b"RSP")
+                self.tm_socket.sendto(packed, (TELEMETRY_IP, TELEMETRY_PORT))
+            except KeyboardInterrupt:
+                self.stop()
+    
+    def stop(self):
+        info("\nShutting down sockets...")
+        if not self.running:
+            return
+        
+        self.running = False
+        
+        if self.tc_socket:
+            self.tc_socket.close()
+        
+        ok("Clear stop!")
+
+def show_banner():
     print(BANNER)
 
-    try:
-      self._init_sdr_gdi_tm()
-      self._init_sdr_gdi_tc()
-      self._init_gdi_cosmos_tc()
+def main():
+    show_banner()
+    gradio = GNURadioController()
+    dcontroller = DockerController()
+    gradio.set_cb_packet(dcontroller.send_telemetry)
 
-      proxy_td = threading.Thread(target=self.sdr_tm_recv_worker, daemon=False)
-      proxy_td.start()
+    th_gradio = threading.Thread(target=gradio.run, daemon=True)
+    th_gradio.start()
 
-      while not self.shutdown_event.is_set():
-        try:
-          data, addr = self.gdi_cosmos_tc.recvfrom(1024)
-          if data:
-            print(f"[{addr}] TC -> {data}")
-            self.send_gdi_sdr_tc(data)
-        except socket.timeout:
-          continue
-        except OSError:
-          break
-    finally:
-      err("Shutting down sockets...")
-      self.shutdown_event.set()
+    dcontroller.run()
 
-      proxy_td.join(timeout=1)
+    gradio.stop()
 
-      for s in self.sockets:
-        try:
-            s.close()
-        except Exception:
-            pass
-      self.zmq_context.term()
-      ok("Shutdown complete")
+    if th_gradio.is_alive():
+        th_gradio.join()
 
 if __name__ == "__main__":
-  GDI().run()
+    main()

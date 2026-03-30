@@ -5,12 +5,12 @@ Gem::Specification.new do |s|
   s.name = 'openc3-cosmos-gradio'
   s.summary = 'OpenC3 openc3-cosmos-gradio plugin'
   s.description = <<-EOF
-    openc3-cosmos-gradio plugin for deployment to OpenC3
+    openc3-cosmos-gradio GNU Radio Bridge for Pwnsat
   EOF
   s.license = 'MIT'
-  s.authors = ['Kevin']
-  s.email = ['kevinleon.morales@gmail.com']
-  s.homepage = 'https://github.com/JahazielLem/openc3-cosmos-gradio'
+  s.authors = ['Anonymous']
+  s.email = ['name@domain.com']
+  s.homepage = 'https://github.com/OpenC3/cosmos'
   s.platform = Gem::Platform::RUBY
   s.required_ruby_version = '>= 3.0'
 
