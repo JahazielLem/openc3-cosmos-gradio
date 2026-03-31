@@ -1,6 +1,29 @@
+# ======================== On-Board Computer
+COMMAND GRADIO SEND_PING BIG_ENDIAN "Send Ping"
+  ID_PARAMETER        ID            8   8   UINT   0x01   0x01    0x01     "Ping Spacecraft"
+
+COMMAND GRADIO SEND_RESET BIG_ENDIAN "Send Reset"
+  ID_PARAMETER        ID            8   8   UINT   0x02   0x02    0x02     "Software Reset Spacecraft"
+
+COMMAND GRADIO GET_FW_VERSION BIG_ENDIAN "Get Firmware version"
+  ID_PARAMETER        ID            8   8   UINT   0x03   0x03    0x03     "Identifier"
+
+# ======================== Electrical Power Systems
 COMMAND GRADIO SET_THRUSTER BIG_ENDIAN "Set Thruster Power"
-  ID_PARAMETER        ID            8   8   UINT   0x01   0x01    0x01     "Identifier"
+  ID_PARAMETER        ID            8   8   UINT   0x04   0x04    0x04     "Identifier"
   APPEND_PARAMETER    THRUSTER_ID   8       UINT   MIN    MAX     0        "Thruster ID"
-    STATE FALSE 0
-    STATE TRUE 1
+    STATE "THRUSTER 0" 0
+    STATE "THRUSTER 1" 1
   APPEND_PARAMETER    VALUE         8       INT    0     100     0          "Thruster Power"
+
+# ======================== Communications
+COMMAND GRADIO SET_BEACON_RATE BIG_ENDIAN "Set Beacon rate"
+  ID_PARAMETER        ID            8   8   UINT   0x05   0x05    0x05     "Identifier"
+  APPEND_PARAMETER    VALUE         8       UINT    1     10     5          "Rate"
+    UNITS Seconds S
+
+COMMAND GRADIO SEND_BROADCAST BIG_ENDIAN "Send Broadcast Message"
+  ID_PARAMETER        ID            8   8   UINT   0x06   0x06    0x06      "Identifier"
+  APPEND_PARAMETER    FREQUENCY     16      INT    433    960     920      "Frequency"
+    UNITS Megahertz MHz
+  APPEND_PARAMETER    MESSAGE       0       STRING    "Pwnsat"              "Message"

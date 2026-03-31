@@ -17,6 +17,7 @@ import struct
 import signal
 import string
 import threading
+from spacepackets.ccsds.spacepacket import SpHeader, PacketType, CCSDS_HEADER_LEN
 
 SOFTWARE_VERSION = "0.1.0"
 BANNER = f"""
@@ -28,7 +29,7 @@ BANNER = f"""
   |   Telecmd   |        |             |        |             |        |             |
   +-------------+        +-------------+        +-------------+        +-------------+
 
-  \033[34mBridge Data Inferface | Version: {SOFTWARE_VERSION} | Author: Kevin Leon | Pwnsat\033[0m
+  \033[36mBridge Data Inferface | Version: {SOFTWARE_VERSION} | Author: Kevin Leon | Pwnsat\033[0m
 """
 
 LISTEN_IP = "0.0.0.0"
@@ -82,7 +83,35 @@ def print_packet(packet: bytes, name: str = "PACKET") -> None:
     print(hexdump(packet))
 
 
-class SpacePacketProtocol:
+class SpacePacketCounter:
+    def __init__(self):
+        self.tc_counter = 0
+    
+    def tc_update(self):
+        self.tc_counter += 1
+    
+    def tc_get_counter(self):
+        return self.tc_counter
+
+class SpacePacketProtocolEncoder:
+    def __init__(self, apid = 0x01, raw_frame: bytes = None, counter: int = 0):
+        self.raw_frame = raw_frame
+        self.apid = apid
+        self.counter = counter
+
+    def encode(self):
+        tc_header = SpHeader.tc(apid=self.apid, seq_count=self.counter, data_len=0)
+        if len(self.raw_frame) > 0:
+            if len(self.raw_frame) == 1:
+                self.raw_frame = self.raw_frame + b"0"
+            tc_header.set_data_len_from_packet_len(CCSDS_HEADER_LEN + len(self.raw_frame))
+            telecommand = tc_header.pack()
+            telecommand.extend(self.raw_frame)
+        else:
+            telecommand = tc_header.pack()
+        return telecommand
+
+class SpacePacketProtocolDecoder:
     def __init__(self, raw_frame: bytes = None):
         self.raw_frame = raw_frame
         self.packet_id = 0
@@ -108,12 +137,12 @@ class SpacePacketProtocol:
         
         (self.packet_id, self.sequence, self.length) = struct.unpack("<HHH", self.raw_frame[:6])
 
-        self.version    = (self.packet_id << 13) & 0x7
-        self.f_type     = (self.packet_id << 11) & 0x1
-        self.sec_header = (self.packet_id << 10) & 0x1
+        self.version    = (self.packet_id >> 13) & 0x7
+        self.f_type     = (self.packet_id >> 11) & 0x1
+        self.sec_header = (self.packet_id >> 10) & 0x1
         self.apid       = self.packet_id & 0x7FF
 
-        self.seq_flags = (self.sequence << 14) & 0x3
+        self.seq_flags = (self.sequence >> 14) & 0x3
         self.seq_count = self.sequence & 0x3FFF
 
         self.payload = self.raw_frame[6:6 + (self.length + 1)]
@@ -140,7 +169,7 @@ class SpacePacketProtocol:
     
     def print_summary(self):
         print(
-            f"\033[36m[SPP]\033[0m "
+            f"\033[36m[TM - SPP]\033[0m "
             f"APID=0x{self.apid:03X} "
             f"SEQ={self.seq_count} SEQ_FLAG={self.seq_flag_str} "
             f"LEN={self.length} "
@@ -155,6 +184,7 @@ class GNURadioController:
         self.tc_sock = None
         self.running = False
         self.cb_packet = None
+        self.spp_counter = SpacePacketCounter()
 
     def set_cb_packet(self, cb):
         self.cb_packet = cb
@@ -175,12 +205,23 @@ class GNURadioController:
         self.tc_sock.setsockopt(zmq.SNDHWM, 1)
     
     def send_tc(self, command: bytes):
+        apid = command[1]
+        payload = command[2:]
+        b_spp = SpacePacketProtocolEncoder(apid, payload, self.spp_counter.tc_get_counter()).encode()
+        
+        print(
+            f"\033[33m[TC - SPP]\033[0m "
+            f"APID=0x{apid:03X} "
+            f"SEQ={self.spp_counter.tc_get_counter()} "
+            f"LEN={len(b_spp)} "
+            f"TYPE=TC ")
+        
         for i in range(0, 6):
-            pdu_bytes = pmt.serialize_str(pmt.to_pmt(command.hex()))
+            pdu_bytes = pmt.serialize_str(pmt.to_pmt(b_spp.hex()))
             self.tc_sock.send(pdu_bytes)
             time.sleep(1)
         
-        ok("Command Packet sended")
+        self.spp_counter.tc_update()
 
     def stop(self):
         if not self.running:
@@ -207,8 +248,7 @@ class GNURadioController:
         try:
             while self.running:
                 raw_telemetry = self.tm_sock.recv()
-                print_packet(raw_telemetry, "Raw Telemetry")
-                spp = SpacePacketProtocol(raw_telemetry)
+                spp = SpacePacketProtocolDecoder(raw_telemetry)
                 if spp.decode():
                     spp.print_summary()
                     if self.cb_packet:
@@ -238,11 +278,9 @@ class DockerController:
 
         ok("BDI TC server binded")
 
-    def send_telemetry(self, spp_packet: SpacePacketProtocol):
-        info(f"Telemetry Packet sended to Cosmos: {TELEMETRY_IP}")
+    def send_telemetry(self, spp_packet: SpacePacketProtocolDecoder):
         packed = struct.pack("<h", spp_packet.apid) + spp_packet.payload
         self.tm_socket.sendto(packed, (TELEMETRY_IP, TELEMETRY_PORT))
-        print(hexdump(packed))
     
     def run(self):
         def handler(sig, frame):

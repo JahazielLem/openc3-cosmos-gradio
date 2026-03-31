@@ -1,3 +1,48 @@
+# ======================== On-Board Computer
+TELEMETRY GRADIO TM_PING_ACK LITTLE_ENDIAN "Spacecraft Ping ACK"
+  APPEND_ID_ITEM ID             16      UINT   0x01       "Identifier"
+    FORMAT_STRING "0X%04X"
+  APPEND_ITEM    SPACECRAFT_ID  8       UINT              "Spacecraft Identifier"
+    FORMAT_STRING "0X%02X"
+  APPEND_ITEM    PING_ACK       96     STRING              "Ping ACK"
+
+TELEMETRY GRADIO TM_FW_VERSION LITTLE_ENDIAN "Firmware Version"
+  APPEND_ID_ITEM ID             16      UINT   0x03       "Identifier"
+    FORMAT_STRING "0X%04X"
+  APPEND_ITEM    SPACECRAFT_ID  8       UINT              "Spacecraft Identifier"
+    FORMAT_STRING "0X%02X"
+  APPEND_ITEM    V_PATCH          8     UINT              "Versions Patch"
+  APPEND_ITEM    V_MINOR          8     UINT              "Versions Minor"
+  APPEND_ITEM    V_MAJOR          8     UINT              "Versions Major"
+
+# ======================== Electrical Power Systems
+TELEMETRY GRADIO TM_THRUSTER LITTLE_ENDIAN "Thruster response"
+  # Keyword      Name           BitSize Type   ID       Description
+  APPEND_ID_ITEM ID             16      UINT   0x004    "Identifier"
+    FORMAT_STRING "0X%04X"
+  APPEND_ITEM    SPACECRAFT_ID  8       UINT            "Spacecraft Identifier"
+    FORMAT_STRING "0X%02X"
+  APPEND_ITEM    THRUSTER0   8      UINT              "Thruster 0"
+  APPEND_ITEM    THRUSTER1   8      UINT              "Thruster 1"
+
+TELEMETRY GRADIO TM_BEACON_RATE LITTLE_ENDIAN "Beacon Rate Response"
+  # Keyword      Name           BitSize Type   ID       Description
+  APPEND_ID_ITEM ID             16      UINT   0x005    "Identifier"
+    FORMAT_STRING "0X%04X"
+  APPEND_ITEM    SPACECRAFT_ID  8       UINT            "Spacecraft Identifier"
+    FORMAT_STRING "0X%02X"
+  APPEND_ITEM    BEACON_RATE   8        UINT              "Beacon Rate"
+    UNITS Seconds S
+
+# ======================== Communications
+TELEMETRY GRADIO TM_BROADCAST_MSG LITTLE_ENDIAN "Broadcasted message"
+  # Keyword      Name           BitSize Type   ID       Description
+  APPEND_ID_ITEM ID             16      UINT   0x006    "Identifier"
+    FORMAT_STRING "0X%04X"
+  APPEND_ITEM    SPACECRAFT_ID  8       UINT            "Spacecraft Identifier"
+    FORMAT_STRING "0X%02X"
+  APPEND_ITEM    MESSAGE   128        STRING              "Message"
+
 TELEMETRY GRADIO STELEMETRY LITTLE_ENDIAN "Sensor Telemetry description"
   # Keyword      Name           BitSize Type   ID       Description
   APPEND_ID_ITEM ID             16      UINT   0x008    "Identifier"
@@ -44,3 +89,6 @@ TELEMETRY GRADIO STELEMETRY LITTLE_ENDIAN "Sensor Telemetry description"
       float(value / 100)
     GENERIC_READ_CONVERSION_END
     CONVERTED_DATA 32 FLOAT
+  APPEND_ITEM    THRUSTER0   8      UINT              "Thruster 0"
+  APPEND_ITEM    THRUSTER1   8      UINT              "Thruster 1"
+
