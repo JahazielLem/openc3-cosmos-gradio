@@ -27,3 +27,6 @@ COMMAND GRADIO SEND_BROADCAST BIG_ENDIAN "Send Broadcast Message"
   APPEND_PARAMETER    FREQUENCY     16      INT    433    960     920      "Frequency"
     UNITS Megahertz MHz
   APPEND_PARAMETER    MESSAGE       0       STRING    "Pwnsat"              "Message"
+
+COMMAND GRADIO SET_TX_IMAGE BIG_ENDIAN "Transmit Image"
+  ID_PARAMETER        ID            8   8   UINT   0x07   0x07    0x07     "Identifier"
