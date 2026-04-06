@@ -38,6 +38,6 @@ jobs:
           tag_name: v${{ github.event.inputs.version }}
           name: Release v${{ github.event.inputs.version }}
           generate_release_notes: true
-          files: openc3-cosmos-fakesat-${{ github.event.inputs.version }}.gem
+          files: openc3-cosmos-gradio-${{ github.event.inputs.version }}.gem
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
