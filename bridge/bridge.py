@@ -135,11 +135,11 @@ class SpacePacketProtocolDecoder:
             err("Space Packet to short")
             return False
         
-        (self.packet_id, self.sequence, self.length) = struct.unpack("<HHH", self.raw_frame[:6])
+        (self.packet_id, self.sequence, self.length) = struct.unpack(">HHH", self.raw_frame[:6])
 
-        self.version    = (self.packet_id >> 13) & 0x7
-        self.f_type     = (self.packet_id >> 11) & 0x1
-        self.sec_header = (self.packet_id >> 10) & 0x1
+        self.version    = (self.packet_id >> 14) & 0x7
+        self.f_type     = (self.packet_id >> 12) & 0x1
+        self.sec_header = (self.packet_id >> 11) & 0x1
         self.apid       = self.packet_id & 0x7FF
 
         self.seq_flags = (self.sequence >> 14) & 0x3

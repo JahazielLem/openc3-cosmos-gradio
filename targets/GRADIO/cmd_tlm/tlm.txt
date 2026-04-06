@@ -69,26 +69,31 @@ TELEMETRY GRADIO STELEMETRY LITTLE_ENDIAN "Sensor Telemetry description"
       float(value / 100)
     GENERIC_READ_CONVERSION_END
     CONVERTED_DATA 32 FLOAT
+    UNITS Celsius C
   APPEND_ITEM    BME_TMP        16      INT              "Environment Temperature"
     GENERIC_READ_CONVERSION_START
       float(value / 100)
     GENERIC_READ_CONVERSION_END
     CONVERTED_DATA 32 FLOAT
+    UNITS Celsius C
   APPEND_ITEM    BME_PREASURE   16      INT              "Environment Preasure"
     GENERIC_READ_CONVERSION_START
       float(value / 100)
     GENERIC_READ_CONVERSION_END
     CONVERTED_DATA 32 FLOAT
+    UNITS Hectopascal hPa
   APPEND_ITEM    BME_ALTITUDE   16      INT              "Environment Altitude"
     GENERIC_READ_CONVERSION_START
       float(value / 100)
     GENERIC_READ_CONVERSION_END
     CONVERTED_DATA 32 FLOAT
+    UNITS Meters m
   APPEND_ITEM    BME_HUMIDITY   16      INT              "Environment Humidity"
     GENERIC_READ_CONVERSION_START
       float(value / 100)
     GENERIC_READ_CONVERSION_END
     CONVERTED_DATA 32 FLOAT
+    UNITS Percentage %
   APPEND_ITEM    THRUSTER0   8      UINT              "Thruster 0"
   APPEND_ITEM    THRUSTER1   8      UINT              "Thruster 1"
 
