@@ -101,14 +101,10 @@ class SpacePacketProtocolEncoder:
 
     def encode(self):
         tc_header = SpHeader.tc(apid=self.apid, seq_count=self.counter, data_len=0)
-        if len(self.raw_frame) > 0:
-            if len(self.raw_frame) == 1:
-                self.raw_frame = self.raw_frame + b"0"
-            tc_header.set_data_len_from_packet_len(CCSDS_HEADER_LEN + len(self.raw_frame))
-            telecommand = tc_header.pack()
-            telecommand.extend(self.raw_frame)
-        else:
-            telecommand = tc_header.pack()
+        self.raw_frame = self.raw_frame + b"0"
+        tc_header.set_data_len_from_packet_len(len(self.raw_frame))
+        telecommand = tc_header.pack()
+        telecommand.extend(self.raw_frame)
         return telecommand
 
 class SpacePacketProtocolDecoder:
@@ -216,11 +212,11 @@ class GNURadioController:
             f"LEN={len(b_spp)} "
             f"TYPE=TC ")
         
-        for i in range(0, 6):
-            pdu_bytes = pmt.serialize_str(pmt.to_pmt(b_spp.hex()))
-            self.tc_sock.send(pdu_bytes)
-            time.sleep(1)
-        
+        pdu_bytes = pmt.serialize_str(pmt.intern(b_spp.hex()))
+        try:
+            self.tc_sock.send(pdu_bytes, flags=zmq.NOBLOCK)
+        except zmq.error.Again:
+            print("[!] TX Queue full. Packet dropped.")
         self.spp_counter.tc_update()
 
     def stop(self):
