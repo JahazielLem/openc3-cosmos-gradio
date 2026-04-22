@@ -102,7 +102,7 @@ class SpacePacketProtocolEncoder:
     def encode(self):
         tc_header = SpHeader.tc(apid=self.apid, seq_count=self.counter, data_len=0)
         self.raw_frame = self.raw_frame + b"0"
-        tc_header.set_data_len_from_packet_len(len(self.raw_frame))
+        tc_header.set_data_len_from_packet_len(CCSDS_HEADER_LEN + len(self.raw_frame))
         telecommand = tc_header.pack()
         telecommand.extend(self.raw_frame)
         return telecommand
